@@ -4,7 +4,7 @@ Gradient-free (CMA-ES) search over the discrete expert selection of frozen Mixtu
 language models: task-level "routing personas" found by evolving selection-only router biases,
 scored with exact, hard-routed fitness.
 
-Status: milestone 1 (base model evaluation). v0 experiment = OLMoE-1B-7B on ARC-Challenge.
+Status: milestone 1 done (base ARC-C acc_norm 48.8, matches lm-eval 48.9). Milestone 2: CMA-ES search.
 
 ## Layout
 
@@ -15,10 +15,11 @@ src/evorouter/
   scoring.py       lm-eval-style cloze requests; acc / acc_norm / fitness from log-likelihoods
   evaluate.py      naive exact evaluator: a population of genomes in padded batches (ground truth)
   diagnostics.py   router statistics: top-k margins (CMA-ES step size), expert loads
+  search.py        resumable search runs: CMA-ES, sep-CMA-ES, random search; per-generation checkpoints
   tasks/           MCQuestion, splits, ARC loader
   models.py        model/tokenizer loading, tiny random OLMoE for tests
   runinfo.py       provenance (git commit, versions, GPU) for result files
-scripts/           entry points: smoke_test.py, eval_base.py
+scripts/           entry points: smoke_test.py, eval_base.py, run_search.py
 tests/             CPU tests on a tiny random OLMoE (no network, seconds)
 cluster/clariden/  container + venv setup and Slurm jobs
 ```
@@ -37,6 +38,7 @@ pip install -e ".[dev]"
 pytest                   # ~5 s on CPU
 ruff check . && ruff format --check .
 python scripts/eval_base.py --tiny --out /tmp/base.json   # offline end-to-end run
+python scripts/run_search.py --tiny --run-dir /tmp/run --generations 3 --popsize 4
 ```
 
 ## Compute rules

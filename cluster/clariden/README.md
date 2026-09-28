@@ -46,6 +46,22 @@ per split, evaluator throughput, a zero-genome sanity check (must be ~0), and pe
 top-k margins and loads. The lm-eval job installs `lm_eval` into the venv on first use. Our test
 acc and acc_norm should match lm-eval's `arc_challenge` numbers; C3PO reports acc_norm 51.3.
 
+## 4. Milestone 2: CMA-ES search (v0)
+
+```bash
+git pull
+# pilot: 1 seed, 10 generations, checks speed and logging (~10 min)
+sbatch -A <your_project> -p debug --export=ALL,NAME=pilot,SEEDS=0,EXTRA_ARGS="--generations 10" \
+       cluster/clariden/run_search.sbatch
+# full: CMA-ES on seeds 0-3, one per GPU; resubmit the same line until every seed has final.json
+sbatch -A <your_project> cluster/clariden/run_search.sbatch
+```
+
+Each seed writes `$SCRATCH/evorouter/runs/<NAME>/seed<k>/`: `config.json` (settings, margins),
+`metrics.jsonl` (per generation), `val.jsonl` (every 10 generations), `log.txt`, and `final.json`
+(test acc_norm of the selected genome vs base) once 200 generations are done. Other arms:
+`--export=ALL,OPTIMIZER=random` or `OPTIMIZER=sep-cma`.
+
 ## Job length
 
 Every job must finish within **1 hour** (course compute limit). All sbatch files request at most
