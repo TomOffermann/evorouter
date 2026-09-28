@@ -23,8 +23,9 @@ import platform
 import sys
 import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import torch
 
@@ -144,15 +145,21 @@ def load_model(model_id: str, device: str, tiny: bool):
         from transformers import OlmoeConfig, OlmoeForCausalLM
 
         cfg = OlmoeConfig(
-            vocab_size=len(tokenizer), hidden_size=64, intermediate_size=32, num_hidden_layers=4,
-            num_attention_heads=4, num_key_value_heads=4, num_experts=8, num_experts_per_tok=2,
+            vocab_size=len(tokenizer),
+            hidden_size=64,
+            intermediate_size=32,
+            num_hidden_layers=4,
+            num_attention_heads=4,
+            num_key_value_heads=4,
+            num_experts=8,
+            num_experts_per_tok=2,
             norm_topk_prob=False,
         )
         torch.manual_seed(0)
         model = OlmoeForCausalLM(cfg)
     else:
         dtype = torch.bfloat16 if device == "cuda" else torch.float32
-        model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=dtype)
+        model = AutoModelForCausalLM.from_pretrained(model_id, dtype=dtype)
     return model.to(device).eval(), tokenizer
 
 
@@ -192,8 +199,14 @@ def option_scores(model, tokenizer, device: str) -> dict[str, Any]:
         logp = torch.log_softmax(model(ids).logits[0, :-1].float(), dim=-1)
         targets = ids[0, n_ctx:]
         ll = logp[n_ctx - 1 :].gather(-1, targets[:, None]).sum().item()
-        rows.append({"option": opt, "tokens": int(targets.numel()), "ll": round(ll, 3),
-                     "ll_per_byte": round(ll / len(cont.encode()), 4)})
+        rows.append(
+            {
+                "option": opt,
+                "tokens": int(targets.numel()),
+                "ll": round(ll, 3),
+                "ll_per_byte": round(ll / len(cont.encode()), 4),
+            }
+        )
     if not all(abs(r["ll"]) < float("inf") for r in rows):
         raise RuntimeError("non-finite log-likelihood")
     return {
@@ -220,8 +233,11 @@ def router_hook(model, tokenizer, device: str) -> dict[str, Any]:
     k = model.config.num_experts_per_tok
     top = logits.topk(k + 1, dim=-1).values
     margin = (top[:, k - 1] - top[:, k]).median().item()
-    return {"router_logits_shape": list(logits.shape), "median_topk_margin": round(margin, 4),
-            "logit_std": round(logits.std().item(), 4)}
+    return {
+        "router_logits_shape": list(logits.shape),
+        "median_topk_margin": round(margin, 4),
+        "logit_std": round(logits.std().item(), 4),
+    }
 
 
 @torch.no_grad()
@@ -237,8 +253,12 @@ def throughput(model, device: str, batch: int = 64, seq: int = 64, reps: int = 3
     if device == "cuda":
         torch.cuda.synchronize()
     dt = (time.perf_counter() - t0) / reps
-    out = {"batch": batch, "seq": seq, "sec_per_forward": round(dt, 3),
-           "tokens_per_sec": int(batch * seq / dt)}
+    out = {
+        "batch": batch,
+        "seq": seq,
+        "sec_per_forward": round(dt, 3),
+        "tokens_per_sec": int(batch * seq / dt),
+    }
     if device == "cuda":
         out["peak_mem_gb"] = round(torch.cuda.max_memory_allocated() / 2**30, 2)
     return out

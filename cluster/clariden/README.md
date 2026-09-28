@@ -33,6 +33,24 @@ runtime plan and the CMA-ES step size.
 Expected on success: all checks PASS; `score` should pick `wind` under acc_norm; ~14 GB GPU memory
 after model load.
 
+## 3. Milestone 1: base model on ARC-Challenge
+
+```bash
+git pull
+sbatch -A <your_project> -p debug cluster/clariden/eval_base.sbatch     # ours, ~5-10 min
+sbatch -A <your_project> -p debug cluster/clariden/lmeval_arc.sbatch    # lm-eval cross-check, ~10-20 min
+```
+
+`eval_base` writes `$SCRATCH/evorouter/runs/base/base-<jobid>.json` with acc / acc_norm / fitness
+per split, evaluator throughput, a zero-genome sanity check (must be ~0), and per-layer router
+top-k margins and loads. The lm-eval job installs `lm_eval` into the venv on first use. Our test
+acc and acc_norm should match lm-eval's `arc_challenge` numbers; C3PO reports acc_norm 51.3.
+
+## Job length
+
+Every job must finish within **1 hour** (course compute limit). All sbatch files request at most
+45 minutes; long searches will be split into resumable, chained jobs.
+
 ## Interactive shell (debugging)
 
 ```bash
