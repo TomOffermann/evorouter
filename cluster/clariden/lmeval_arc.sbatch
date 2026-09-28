@@ -16,7 +16,9 @@ srun --environment=evorouter bash -c "
   set -euo pipefail
   source '$ROOT/venv/bin/activate'
   export PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple
-  python -c 'import lm_eval' 2>/dev/null || pip install -q 'lm_eval>=0.4.5'
+  # lm_eval needs a newer typing_extensions (PEP 728 extra_items) than the NGC image ships.
+  python -c 'import lm_eval.evaluator' 2>/dev/null || \
+    pip install -q -U 'lm_eval>=0.4.5' 'typing_extensions>=4.13'
   lm_eval --model hf \
     --model_args pretrained=allenai/OLMoE-1B-7B-0924,dtype=bfloat16 \
     --tasks arc_challenge --batch_size 32 --output_path '$OUT'
