@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evorouter"
+version = "0.1.0"
+description = "Gradient-free search over the discrete expert selection of frozen MoE language models"
+readme = "README.md"
+requires-python = ">=3.10"
+# torch is deliberately not pinned: on Clariden it comes from the NGC container.
+dependencies = [
+    "torch>=2.2",
+    "transformers>=4.56,<5",
+    "datasets>=2.20",
+    "numpy>=1.24",
+    "cma>=3.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evorouter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
