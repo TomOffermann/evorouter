@@ -7,8 +7,10 @@ correct, and it is the ground truth that any faster (cached) evaluator must repr
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Sequence
 from contextlib import nullcontext
+from dataclasses import replace
 from typing import Literal
 
 import numpy as np
@@ -63,6 +65,20 @@ class Evaluator:
         self.max_batch_tokens = max_batch_tokens
         self.pad_id = pad_id
         self.device = next(model.parameters()).device
+
+    def subset(self, question_indices: Sequence[int]) -> Evaluator:
+        """Evaluator on a subset of the questions (e.g. a mini-batch), reusing the tokenized requests."""
+        idx = list(question_indices)
+        remap = {q: i for i, q in enumerate(idx)}
+        if len(remap) != len(idx):
+            raise ValueError("duplicate question indices")
+        sub = copy.copy(self)
+        sub.questions = [self.questions[q] for q in idx]
+        sub.requests = sorted(
+            (replace(r, question=remap[r.question]) for r in self.requests if r.question in remap),
+            key=lambda r: (r.question, r.choice),
+        )
+        return sub
 
     @property
     def num_tokens(self) -> int:

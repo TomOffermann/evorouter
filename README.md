@@ -6,6 +6,10 @@ scored with exact, hard-routed fitness.
 
 Status: milestone 1 done (base ARC-C acc_norm 48.8, matches lm-eval 48.9). Milestone 2: CMA-ES search.
 
+Data protocol (v1): search on fresh mini-batches of the ARC-C **train** split (a new batch every
+generation), select on the official **validation** split, report once on **test**. The v0 protocol
+(64 fixed search questions) overfit and is retired; run directories record their protocol.
+
 ## Layout
 
 ```
@@ -15,7 +19,7 @@ src/evorouter/
   scoring.py       lm-eval-style cloze requests; acc / acc_norm / fitness from log-likelihoods
   evaluate.py      naive exact evaluator: a population of genomes in padded batches (ground truth)
   diagnostics.py   router statistics: top-k margins, expert usage/loads, selection change rate
-  search.py        resumable search runs: CMA-ES, sep-CMA-ES, random search; per-generation checkpoints
+  search.py        resumable search runs (CMA-ES, sep-CMA-ES, random); per-generation mini-batches
   context.py       shared script setup (model, data, split, layers, margins) and GPU sharding
   stats.py         rank statistics (Spearman) without scipy
   tasks/           MCQuestion, splits, ARC loader

@@ -46,7 +46,7 @@ per split, evaluator throughput, a zero-genome sanity check (must be ~0), and pe
 top-k margins and loads. The lm-eval job installs `lm_eval` into the venv on first use. Our test
 acc and acc_norm should match lm-eval's `arc_challenge` numbers; C3PO reports acc_norm 51.3.
 
-## 4. Milestone 2: CMA-ES search (v0)
+## 4. Milestone 2: CMA-ES search (protocol v1)
 
 ```bash
 git pull
@@ -57,8 +57,10 @@ sbatch -A <your_project> -p debug --export=ALL,NAME=pilot,SEEDS=0,EXTRA_ARGS="--
 sbatch -A <your_project> cluster/clariden/run_search.sbatch
 ```
 
+Every generation draws a fresh batch of 128 ARC-C train questions (`EXTRA_ARGS="--batch-size N"`);
+validation is the official ARC-C validation split. Default NAME is `<optimizer>-v1`.
 Each seed writes `$SCRATCH/evorouter/runs/<NAME>/seed<k>/`: `config.json` (settings, margins),
-`metrics.jsonl` (per generation), `val.jsonl` (every 10 generations), `log.txt`, and `final.json`
+`metrics.jsonl` (per generation), `val.jsonl` (every 5 generations), `log.txt`, and `final.json`
 (test acc_norm of the selected genome vs base) once 200 generations are done. Other arms:
 `--export=ALL,OPTIMIZER=random` or `OPTIMIZER=sep-cma`.
 

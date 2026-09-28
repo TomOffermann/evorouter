@@ -1,15 +1,23 @@
 """Resumable black-box search over selection-bias genomes.
 
-One :class:`SearchRun` = one seed: fixed search and validation sets, an optimizer, and a run
-directory holding everything needed to resume after a job ends (every Slurm job is <= 1 h):
+Data protocol: every generation draws a fresh mini-batch of ``batch_size`` questions from the full
+training pool (deterministic in (seed, generation), so resumed runs see identical batches). All
+candidates of a generation are scored on the same batch, so their ranking is fair; across
+generations the objective is the expected fitness over the whole training set, so no fixed subset
+can be memorized. The current mean and the base model (theta = 0) are scored on the same batch too,
+giving a paired, low-variance progress signal. Model selection uses a separate validation set;
+the test set is touched once, at the end.
 
-    run_dir/config.json      the SearchConfig + margins (fixed at creation)
+One :class:`SearchRun` = one seed, with a run directory that holds everything needed to resume
+after a job ends (every Slurm job is <= 1 h):
+
+    run_dir/config.json      settings, adapted layers, margins (fixed at creation)
     run_dir/state.pkl        optimizer state, generation counter, best-validation record
-    run_dir/metrics.jsonl    one line per generation (search set)
+    run_dir/metrics.jsonl    one line per generation (mini-batch statistics)
     run_dir/val.jsonl        one line per validation checkpoint
     run_dir/final.json       test-set result of the selected genome (written once, at the end)
 
-Optimizers (all maximize the search-set fitness; only ranks are used):
+Optimizers (all maximize the mini-batch fitness; only ranks are used):
     cma      full-covariance CMA-ES (pycma)
     sep-cma  diagonal CMA-ES (pycma option CMA_diagonal)
     random   i.i.d. N(0, sigma0^2 I) samples, incumbent = best seen (noise control)
@@ -39,7 +47,8 @@ class SearchConfig:
     popsize: int = 64
     sigma0: float = 1.0  # in margin units: beta_{l,i} = Delta_l * theta_{l,i}
     max_generations: int = 200
-    val_every: int = 10
+    val_every: int = 5
+    batch_size: int = 128  # questions per generation; 0 = the whole training pool
     mode: str = "selection"
     scope: str = "scored"
 
@@ -94,15 +103,17 @@ class SearchRun:
         self,
         run_dir: Path,
         cfg: SearchConfig,
-        search_eval: Evaluator,
+        train_eval: Evaluator,
         val_eval: Evaluator,
         test_eval: Evaluator | None = None,
     ) -> None:
-        if search_eval.genome is None:
-            raise ValueError("search evaluator needs a genome")
+        if train_eval.genome is None:
+            raise ValueError("train evaluator needs a genome")
+        if cfg.batch_size > len(train_eval.questions):
+            raise ValueError(f"batch_size {cfg.batch_size} > training pool {len(train_eval.questions)}")
         self.dir, self.cfg = Path(run_dir), cfg
-        self.search_eval, self.val_eval, self.test_eval = search_eval, val_eval, test_eval
-        self.dim = search_eval.genome.dim
+        self.train_eval, self.val_eval, self.test_eval = train_eval, val_eval, test_eval
+        self.dim = train_eval.genome.dim
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "state.pkl"
         if self.state_path.exists():
@@ -140,23 +151,41 @@ class SearchRun:
         _append_jsonl(self.dir / "val.jsonl", row)
         return row
 
+    def batch(self, generation: int) -> Evaluator:
+        """The mini-batch of generation ``generation`` (deterministic in seed and generation)."""
+        n_pool = len(self.train_eval.questions)
+        if self.cfg.batch_size in (0, n_pool):
+            return self.train_eval
+        rng = np.random.default_rng([self.cfg.seed, generation])
+        return self.train_eval.subset(np.sort(rng.choice(n_pool, self.cfg.batch_size, replace=False)))
+
     def step(self) -> dict[str, Any]:
         opt = self.state["optimizer"]
         t0 = time.perf_counter()
+        batch = self.batch(self.state["generation"])
         xs = opt.ask()
-        scores: MCScores = self.search_eval.evaluate(np.stack(xs))
-        opt.tell(xs, list(-scores.fitness))  # optimizers minimize
+        mean_before = optimizer_mean(opt)
+        # candidates + current mean + base model, all on the same batch
+        scores: MCScores = batch.evaluate(np.stack([*xs, mean_before, np.zeros(self.dim)]))
+        n = len(xs)
+        cand = scores.fitness[:n]
+        opt.tell(xs, list(-cand))  # optimizers minimize
         self.state["generation"] += 1
-        self.state["evaluations"] += len(xs)
-        best = int(np.argmax(scores.fitness))
+        self.state["evaluations"] += n
+        best = int(np.argmax(cand))
         row = {
             "generation": self.state["generation"],
             "evaluations": self.state["evaluations"],
-            "fitness_best": float(scores.fitness[best]),
-            "fitness_mean": float(scores.fitness.mean()),
-            "fitness_median": float(np.median(scores.fitness)),
+            "batch_questions": len(batch.questions),
+            "fitness_best": float(cand[best]),
+            "fitness_mean": float(cand.mean()),
+            "fitness_median": float(np.median(cand)),
             "acc_norm_best": float(scores.acc_norm[best]),
-            "n_distinct_fitness": int(len(np.unique(np.round(scores.fitness, 10)))),
+            "mean_fitness": float(scores.fitness[n]),
+            "base_fitness": float(scores.fitness[n + 1]),
+            "mean_minus_base_fitness": float(scores.fitness[n] - scores.fitness[n + 1]),
+            "mean_minus_base_acc_norm": float(scores.acc_norm[n] - scores.acc_norm[n + 1]),
+            "n_distinct_fitness": int(len(np.unique(np.round(cand, 10)))),
             "sigma": optimizer_sigma(opt),
             "mean_norm": float(np.linalg.norm(optimizer_mean(opt))),
             "seconds": round(time.perf_counter() - t0, 2),

@@ -2,7 +2,7 @@
 # Runs INSIDE the container (started by run_search.sbatch): one search process per GPU.
 # Configuration via environment variables:
 #   OPTIMIZER   cma | sep-cma | random            (default cma)
-#   NAME        run group under $EVOROUTER_ROOT/runs (default <optimizer>-v0)
+#   NAME        run group under $EVOROUTER_ROOT/runs (default <optimizer>-v1)
 #   SEEDS       space-separated, at most 4          (default "0 1 2 3")
 #   BUDGET_MIN  search time budget per job, minutes (default 45)
 #   EXTRA_ARGS  passed through to scripts/run_search.py (only used when a run is created)
@@ -13,7 +13,7 @@ source "$ROOT/venv/bin/activate"
 export PYTHONPATH="$PWD/src"
 
 OPTIMIZER="${OPTIMIZER:-cma}"
-NAME="${NAME:-${OPTIMIZER}-v0}"
+NAME="${NAME:-${OPTIMIZER}-v1}"
 read -r -a SEED_LIST <<< "${SEEDS:-0 1 2 3}"
 BUDGET_MIN="${BUDGET_MIN:-45}"
 
