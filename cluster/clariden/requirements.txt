@@ -1,0 +1,5 @@
+# Installed on top of the NGC PyTorch container (torch/CUDA come from the image).
+transformers>=4.46,<5
+datasets>=2.20
+accelerate>=0.34
+cma>=3.3
