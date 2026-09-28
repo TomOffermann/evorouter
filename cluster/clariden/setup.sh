@@ -44,6 +44,9 @@ echo "== wrote $EDF"
 echo "== creating venv $ROOT/venv and installing requirements"
 srun -A "$ACCOUNT" -p "$PARTITION" -N1 -n1 -t 00:30:00 --environment=evorouter bash -c "
   set -euo pipefail
+  # The NGC image's /etc/pip.conf adds pypi.ngc.nvidia.com as extra index, which is unreachable
+  # from Alps and makes pip retry every request. Ignore that config and use PyPI only.
+  export PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple PIP_DEFAULT_TIMEOUT=60
   [[ -d '$ROOT/venv' ]] || python -m venv --system-site-packages '$ROOT/venv'
   source '$ROOT/venv/bin/activate'
   pip install --upgrade pip -q
