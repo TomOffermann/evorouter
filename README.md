@@ -14,12 +14,15 @@ src/evorouter/
   genome.py        flat genome theta <-> per-layer biases (layer-major, optional margin scaling)
   scoring.py       lm-eval-style cloze requests; acc / acc_norm / fitness from log-likelihoods
   evaluate.py      naive exact evaluator: a population of genomes in padded batches (ground truth)
-  diagnostics.py   router statistics: top-k margins (CMA-ES step size), expert loads
+  diagnostics.py   router statistics: top-k margins, expert usage/loads, selection change rate
   search.py        resumable search runs: CMA-ES, sep-CMA-ES, random search; per-generation checkpoints
+  context.py       shared script setup (model, data, split, layers, margins) and GPU sharding
+  stats.py         rank statistics (Spearman) without scipy
   tasks/           MCQuestion, splits, ARC loader
   models.py        model/tokenizer loading, tiny random OLMoE for tests
   runinfo.py       provenance (git commit, versions, GPU) for result files
-scripts/           entry points: smoke_test.py, eval_base.py, run_search.py
+scripts/           entry points: smoke_test.py, eval_base.py, run_search.py,
+                   scan_experts.py (single-expert scan), probe_objective.py (scope/sigma/tau probe)
 tests/             CPU tests on a tiny random OLMoE (no network, seconds)
 cluster/clariden/  container + venv setup and Slurm jobs
 ```

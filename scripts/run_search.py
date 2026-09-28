@@ -17,6 +17,7 @@ from pathlib import Path
 
 import torch
 
+from evorouter.context import tiny_data
 from evorouter.diagnostics import router_logits_at_scored_positions, topk_margins
 from evorouter.evaluate import Evaluator
 from evorouter.genome import BiasGenome
@@ -24,17 +25,7 @@ from evorouter.models import OLMOE_ID, byte_encode, hf_encoder, load_model, tiny
 from evorouter.routing import last_layers
 from evorouter.runinfo import env_info
 from evorouter.search import SearchConfig, SearchRun
-from evorouter.tasks.base import MCQuestion, search_val_split
-
-
-def tiny_data() -> dict[str, list[MCQuestion]]:
-    base = [
-        ("Which is renewable?", ("coal", "wind", "oil", "gas"), 1),
-        ("What do plants need?", ("light", "sand", "rock"), 0),
-        ("Largest planet?", ("Mars", "Venus", "Jupiter", "Earth"), 2),
-    ]
-    pool = [MCQuestion(f"t{i}", q + f" ({i})", c, a) for i, (q, c, a) in enumerate(base * 4)]
-    return {"train": pool, "validation": pool[:3], "test": pool[:6]}
+from evorouter.tasks.base import search_val_split
 
 
 def main() -> None:

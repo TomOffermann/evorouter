@@ -62,6 +62,18 @@ Each seed writes `$SCRATCH/evorouter/runs/<NAME>/seed<k>/`: `config.json` (setti
 (test acc_norm of the selected genome vs base) once 200 generations are done. Other arms:
 `--export=ALL,OPTIMIZER=random` or `OPTIMIZER=sep-cma`.
 
+## 5. Diagnostics (sharded over 4 GPUs, then merged)
+
+```bash
+sbatch -A <your_project> -p debug --export=ALL,SCRIPT=scripts/scan_experts.py,NAME=scan-scored \
+       cluster/clariden/diag.sbatch
+sbatch -A <your_project> -p debug --export=ALL,SCRIPT=scripts/probe_objective.py,NAME=probe \
+       cluster/clariden/diag.sbatch
+```
+
+Results: `$SCRATCH/evorouter/runs/diag/<NAME>/summary.json` (also printed at the end of the job log).
+Add `EXTRA_ARGS="--scope all"` to run the scan with the bias on all positions.
+
 ## Job length
 
 Every job must finish within **1 hour** (course compute limit). All sbatch files request at most

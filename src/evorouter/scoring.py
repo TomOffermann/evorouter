@@ -68,27 +68,53 @@ class MCScores:
         }
 
 
-def mc_scores(
-    loglik: np.ndarray, requests: Sequence[Request], questions: Sequence[MCQuestion], tau: float = 1.0
-) -> MCScores:
-    """Aggregate continuation log-likelihoods ``loglik`` [N, len(requests)] into per-member metrics."""
+def option_scores(
+    loglik: np.ndarray, requests: Sequence[Request], questions: Sequence[MCQuestion]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Reshape ``loglik`` [N, len(requests)] into padded per-option arrays [N, Q, A_max].
+
+    Returns (raw LL, LL / len(choice)); missing options (questions with fewer choices) are -inf.
+    """
     loglik = np.atleast_2d(np.asarray(loglik, dtype=np.float64))
-    n_members = loglik.shape[0]
     n_q, a_max = len(questions), max(len(q.choices) for q in questions)
-    ll = np.full((n_members, n_q, a_max), -np.inf)
+    ll = np.full((loglik.shape[0], n_q, a_max), -np.inf)
     length = np.ones((n_q, a_max))
     for j, r in enumerate(requests):
         ll[:, r.question, r.choice] = loglik[:, j]
         length[r.question, r.choice] = max(len(questions[r.question].choices[r.choice]), 1)
-    answers = np.array([q.answer for q in questions])
-    rows = np.arange(n_q)
+    return ll, ll / length
 
-    acc = (ll.argmax(-1) == answers).mean(-1)
-    norm = ll / length  # -inf stays -inf for missing options
-    acc_norm = (norm.argmax(-1) == answers).mean(-1)
 
+def mean_log_q(norm: np.ndarray, answers: np.ndarray, tau: float) -> np.ndarray:
+    """Fitness: mean over questions of log softmax(norm / tau)[answer]; norm is [N, Q, A]."""
     z = norm / tau
     z_max = z.max(-1, keepdims=True)
     log_q = z - z_max - np.log(np.exp(z - z_max).sum(-1, keepdims=True))
-    fitness = log_q[:, rows, answers].mean(-1)
-    return MCScores(fitness=fitness, acc=acc, acc_norm=acc_norm)
+    return log_q[:, np.arange(norm.shape[1]), answers].mean(-1)
+
+
+def mc_scores(
+    loglik: np.ndarray, requests: Sequence[Request], questions: Sequence[MCQuestion], tau: float = 1.0
+) -> MCScores:
+    """Aggregate continuation log-likelihoods ``loglik`` [N, len(requests)] into per-member metrics."""
+    ll, norm = option_scores(loglik, requests, questions)
+    answers = np.array([q.answer for q in questions])
+    return MCScores(
+        fitness=mean_log_q(norm, answers, tau),
+        acc=(ll.argmax(-1) == answers).mean(-1),
+        acc_norm=(norm.argmax(-1) == answers).mean(-1),
+    )
+
+
+def fit_temperature(
+    loglik: np.ndarray,
+    requests: Sequence[Request],
+    questions: Sequence[MCQuestion],
+    grid: np.ndarray | None = None,
+) -> float:
+    """Temperature maximizing the base model's fitness (calibrated option probabilities)."""
+    grid = np.logspace(-3, 1, 81) if grid is None else grid
+    _, norm = option_scores(loglik, requests, questions)
+    answers = np.array([q.answer for q in questions])
+    values = [float(mean_log_q(norm[:1], answers, t)[0]) for t in grid]
+    return float(grid[int(np.argmax(values))])
